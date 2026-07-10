@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>BT Joystick</title>
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #161a24;
+    --surface2: #1e2436;
+    --border: #2a3050;
+    --accent: #00e5ff;
+    --accent2: #7c4dff;
+    --danger: #ff4d6d;
+    --text: #e8eaf6;
+    --muted: #6b7394;
+    --green: #00e676;
+    --font-mono: 'Courier New', monospace;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 12px 18px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .logo {
+    font-size: 1rem; font-weight: 700; letter-spacing: .08em;
+    color: var(--accent); font-family: var(--font-mono); text-transform: uppercase;
+  }
+  .bt-status { display: flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--muted); }
+  .bt-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); transition: background .3s; }
+  .bt-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .bt-dot.connecting { background: #ffd740; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  /* ── Scroll container ── */
+  main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 14px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 500px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  /* ── Panel ── */
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .panel-title { font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; font-family: var(--font-mono); }
+
+  /* ── BT row ── */
+  .bt-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .bt-device-name {
+    flex: 1; font-size: .88rem; color: var(--text);
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px;
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .bt-device-name.placeholder { color: var(--muted); }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text); font-size: .83rem; font-weight: 600;
+    cursor: pointer; white-space: nowrap; user-select: none;
+  }
+  .btn.primary { background: var(--accent); color: #000; border-color: var(--accent); }
+  .btn.danger { border-color: var(--danger); color: var(--danger); }
+  .btn:active { opacity: .7; transform: scale(.96); }
+  .btn:disabled { opacity: .35; pointer-events: none; }
+
+  /* ── Joystick ── */
+  .joystick-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 86px);
+    gap: 8px;
+  }
+  .joy-btn {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    background: var(--surface2); border: 1.5px solid var(--border); border-radius: 14px;
+    cursor: pointer; user-select: none; transition: border-color .1s;
+  }
+  .joy-btn:active, .joy-btn.pressed {
+    transform: scale(.88);
+    background: #1a2a3a;
+    border-color: var(--accent);
+    box-shadow: 0 0 14px rgba(0,229,255,.25);
+  }
+  .joy-btn .arrow { font-size: 1.5rem; line-height: 1; }
+  .joy-btn .char-badge {
+    font-family: var(--font-mono); font-size: .62rem; color: var(--accent);
+    background: rgba(0,229,255,.1); border: 1px solid rgba(0,229,255,.25);
+    border-radius: 4px; padding: 1px 5px;
+  }
+  .joy-btn.stop { background: rgba(124,77,255,.1); border-color: var(--accent2); }
+  .joy-btn.stop:active, .joy-btn.stop.pressed { box-shadow: 0 0 14px rgba(124,77,255,.35); }
+  .joy-btn.stop .arrow { font-size: 1.1rem; }
+  .cell-empty { visibility: hidden; }
+
+  /* ── Custom buttons ── */
+  .custom-btns { display: flex; gap: 10px; }
+  .custom-btn {
+    flex: 1; height: 68px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    background: linear-gradient(135deg, rgba(124,77,255,.15), rgba(0,229,255,.08));
+    border: 1.5px solid var(--accent2); border-radius: 14px;
+    cursor: pointer; user-select: none;
+  }
+  .custom-btn:active, .custom-btn.pressed { transform: scale(.94); box-shadow: 0 0 16px rgba(124,77,255,.4); }
+  .custom-btn .cb-name { font-size: .88rem; font-weight: 700; color: var(--text); }
+  .custom-btn .cb-seq {
+    font-family: var(--font-mono); font-size: .6rem; color: var(--accent2);
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 8px;
+  }
+
+  /* ── Log ── */
+  .log-box {
+    background: #0a0c10; border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px; height: 80px; overflow-y: auto;
+    font-family: var(--font-mono); font-size: .7rem;
+  }
+  .log-line { margin-bottom: 2px; }
+  .log-line .ts { color: var(--muted); margin-right: 5px; }
+  .log-line .msg { color: var(--green); }
+  .log-line .msg.err { color: var(--danger); }
+  .log-line .msg.info { color: var(--accent); }
+
+  /* ── Modal ── */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.75);
+    display: flex; align-items: flex-end; justify-content: center;
+    z-index: 100; padding: 0;
+    opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  .overlay.open { opacity: 1; pointer-events: all; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding: 20px 20px 40px; width: 100%; max-height: 85vh; overflow-y: auto;
+    transform: translateY(20px); transition: transform .2s;
+  }
+  .overlay.open .modal { transform: translateY(0); }
+  .modal-title { font-size: .95rem; font-weight: 700; margin-bottom: 18px; color: var(--accent); font-family: var(--font-mono); }
+  .config-section-title { font-size: .65rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-family: var(--font-mono); margin: 14px 0 8px; }
+  .config-table { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+  .config-row { display: grid; grid-template-columns: 26px 1fr 1fr; gap: 7px; align-items: center; }
+  .config-row.wide { grid-template-columns: 60px 1fr; }
+  .config-row .label { font-size: 1.2rem; text-align: center; }
+  .config-row input {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 7px;
+    color: var(--text); padding: 7px 10px; font-family: var(--font-mono); font-size: .83rem;
+    width: 100%; outline: none;
+  }
+  .config-row input:focus { border-color: var(--accent); }
+  .config-row input.name-input { font-family: inherit; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+
+  /* device list */
+  .device-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; max-height: 220px; overflow-y: auto; }
+  .device-item {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px;
+    cursor: pointer;
+  }
+  .device-item:active { border-color: var(--accent); }
+  .device-item .dev-name { font-size: .88rem; color: var(--text); font-weight: 600; }
+  .device-item .dev-addr { font-size: .7rem; color: var(--muted); font-family: var(--font-mono); }
+  .empty-list { text-align: center; padding: 20px; color: var(--muted); font-size: .85rem; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+    <div style="display:flex;align-items:center;gap:10px"><img src="data:image/png;base64,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" style="height:2.4rem;width:auto;object-fit:contain" alt="ESET"><div class="logo">BT<span style="color:var(--muted);font-weight:400">/</span>Joystick</div></div>
+  <!-- disconnected: tap → scan modal -->
+  <div class="bt-status" id="btStatusDisc" onclick="openBTModal()" style="cursor:pointer;padding:4px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2)">
+    <div class="bt-dot" id="btDot"></div>
+    <span id="btStatusText">Sin conexión</span>
+  </div>
+  <!-- connected: tap → disconnect modal -->
+  <div class="bt-status" id="btStatusConn" onclick="openDiscModal()" style="display:none;cursor:pointer;padding:4px 8px;border-radius:8px;border:1px solid rgba(0,230,118,.25);background:rgba(0,230,118,.08)">
+    <div class="bt-dot connected"></div>
+    <span id="btDeviceName" style="color:var(--green)">—</span>
+  </div>
+</header>
+
+<main>
+
+
+
+  <!-- Joystick -->
+  <div class="panel">
+    <div class="panel-title">Control</div>
+    <div class="joystick-grid">
+      <div class="cell-empty"></div>
+      <div class="joy-btn" id="joy-up">
+        <span class="arrow">▲</span><span class="char-badge" id="badge-up">W</span>
+      </div>
+      <div class="cell-empty"></div>
+
+      <div class="joy-btn" id="joy-left">
+        <span class="arrow">◀</span><span class="char-badge" id="badge-left">A</span>
+      </div>
+      <div class="joy-btn stop" id="joy-stop">
+        <span class="arrow">⏹</span><span class="char-badge" id="badge-stop">S</span>
+      </div>
+      <div class="joy-btn" id="joy-right">
+        <span class="arrow">▶</span><span class="char-badge" id="badge-right">D</span>
+      </div>
+
+      <div class="cell-empty"></div>
+      <div class="joy-btn" id="joy-down">
+        <span class="arrow">▼</span><span class="char-badge" id="badge-down">X</span>
+      </div>
+      <div class="cell-empty"></div>
+    </div>
+  </div>
+
+  <!-- Custom buttons -->
+  <div class="panel">
+    <div class="panel-title">Botones Personalizados</div>
+    <div class="custom-btns">
+      <div class="custom-btn" id="custom-a">
+        <span class="cb-name" id="cb-name-a">Acción 1</span>
+        <span class="cb-seq"  id="cb-seq-a">ABC</span>
+      </div>
+      <div class="custom-btn" id="custom-b">
+        <span class="cb-name" id="cb-name-b">Acción 2</span>
+        <span class="cb-seq"  id="cb-seq-b">XYZ</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="panel-title" style="margin-bottom:0">Registro</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn" id="btnConfig" style="padding:5px 12px;font-size:.75rem">⚙ Config</button>
+        <button class="btn" onclick="clearLog()" style="padding:5px 12px;font-size:.75rem">Limpiar</button>
+      </div>
+    </div>
+    <div class="log-box" id="logBox"></div>
+  </div>
+
+</main>
+
+<!-- BT scan modal (shown when disconnected) -->
+<div class="overlay" id="btModal">
+  <div class="modal">
+    <div class="modal-title">📶 Dispositivo Bluetooth</div>
+    <div class="modal-actions" style="margin-bottom:16px;margin-top:-6px">
+      <button class="btn" onclick="closeBTModal()">Cerrar</button>
+    </div>
+    <button class="btn primary" id="btnScan" style="width:100%">📡 Escanear dispositivos pareados</button>
+  </div>
+</div>
+
+<!-- Disconnect modal (shown when connected) -->
+<div class="overlay" id="discModal">
+  <div class="modal">
+    <div class="modal-title">📶 Dispositivo conectado</div>
+    <div class="modal-actions" style="margin-bottom:16px;margin-top:-6px">
+      <button class="btn" onclick="closeDiscModal()">Cerrar</button>
+    </div>
+    <div class="bt-device-name" id="deviceName" style="margin-bottom:12px">—</div>
+    <button class="btn danger" id="btnDisconnect" style="width:100%">Desconectar</button>
+  </div>
+</div>
+
+<!-- Device picker modal -->
+<div class="overlay" id="scanOverlay">
+  <div class="modal">
+    <div class="modal-title">📡 Dispositivos Bluetooth</div>
+    <div id="deviceList" class="device-list">
+      <div class="empty-list">Buscando…</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeScan()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Config modal -->
+<div class="overlay" id="configOverlay">
+  <div class="modal">
+    <div class="modal-title">⚙ Configuración</div>
+    <div class="modal-actions" style="margin-bottom:16px;margin-top:-6px">
+      <button class="btn" onclick="closeConfig()">Cancelar</button>
+      <button class="btn primary" onclick="saveConfig()">Guardar</button>
+    </div>
+
+    <div class="config-section-title">Joystick — carácter enviado · etiqueta</div>
+    <div class="config-table">
+      <div class="config-row">
+        <span class="label">▲</span>
+        <input id="cfg-up"    type="text" maxlength="4" value="W">
+        <input id="cfg-up-lb" type="text" maxlength="20" value="W" class="name-input">
+      </div>
+      <div class="config-row">
+        <span class="label">▼</span>
+        <input id="cfg-down"    type="text" maxlength="4" value="X">
+        <input id="cfg-down-lb" type="text" maxlength="20" value="X" class="name-input">
+      </div>
+      <div class="config-row">
+        <span class="label">◀</span>
+        <input id="cfg-left"    type="text" maxlength="4" value="A">
+        <input id="cfg-left-lb" type="text" maxlength="20" value="A" class="name-input">
+      </div>
+      <div class="config-row">
+        <span class="label">▶</span>
+        <input id="cfg-right"    type="text" maxlength="4" value="D">
+        <input id="cfg-right-lb" type="text" maxlength="20" value="D" class="name-input">
+      </div>
+      <div class="config-row">
+        <span class="label">⏹</span>
+        <input id="cfg-stop"    type="text" maxlength="4" value="S">
+        <input id="cfg-stop-lb" type="text" maxlength="20" value="S" class="name-input">
+      </div>
+    </div>
+
+    <div class="config-section-title">Botón A</div>
+    <div class="config-table">
+      <div class="config-row wide">
+        <span style="font-size:.75rem;color:var(--muted)">Nombre</span>
+        <input id="cfg-ca-name" type="text" maxlength="20" value="Acción 1" class="name-input">
+      </div>
+      <div class="config-row wide">
+        <span style="font-size:.75rem;color:var(--muted)">Secuencia</span>
+        <input id="cfg-ca-seq" type="text" value="ABC">
+      </div>
+    </div>
+
+    <div class="config-section-title">Botón B</div>
+    <div class="config-table">
+      <div class="config-row wide">
+        <span style="font-size:.75rem;color:var(--muted)">Nombre</span>
+        <input id="cfg-cb-name" type="text" maxlength="20" value="Acción 2" class="name-input">
+      </div>
+      <div class="config-row wide">
+        <span style="font-size:.75rem;color:var(--muted)">Secuencia</span>
+        <input id="cfg-cb-seq" type="text" value="XYZ">
+      </div>
+    </div>
+
+
+  </div>
+</div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────
+const cfg = {
+  up:    { char: 'W', label: 'W' },
+  down:  { char: 'X', label: 'X' },
+  left:  { char: 'A', label: 'A' },
+  right: { char: 'D', label: 'D' },
+  stop:  { char: 'S', label: 'S' },
+  ca:    { name: 'Acción 1', seq: 'ABC' },
+  cb:    { name: 'Acción 2', seq: 'XYZ' },
+};
+try {
+  const s = JSON.parse(localStorage.getItem('btj_cfg') || 'null');
+  if (s) Object.assign(cfg, s);
+} catch(_) {}
+
+function applyConfig() {
+  ['up','down','left','right','stop'].forEach(d =>
+    document.getElementById(`badge-${d}`).textContent = cfg[d].label || cfg[d].char
+  );
+  document.getElementById('cb-name-a').textContent = cfg.ca.name;
+  document.getElementById('cb-seq-a').textContent  = cfg.ca.seq;
+  document.getElementById('cb-name-b').textContent = cfg.cb.name;
+  document.getElementById('cb-seq-b').textContent  = cfg.cb.seq;
+}
+applyConfig();
+
+// ── Log ───────────────────────────────────────────────────────────────
+function log(msg, type='msg') {
+  const box = document.getElementById('logBox');
+  const ts  = new Date().toLocaleTimeString('es', { hour12: false });
+  const el  = document.createElement('div');
+  el.className = 'log-line';
+  el.innerHTML = `<span class="ts">[${ts}]</span><span class="msg ${type}">${msg}</span>`;
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+}
+function clearLog() { document.getElementById('logBox').innerHTML = ''; }
+
+// ── BT status UI ──────────────────────────────────────────────────────
+function setBTStatus(state, name='') {
+  const dot  = document.getElementById('btDot');
+  const stat = document.getElementById('btStatusText');
+  const disc = document.getElementById('btStatusDisc');
+  const conn = document.getElementById('btStatusConn');
+  if (state === 'connected') {
+    disc.style.display = 'none';
+    conn.style.display = '';
+    document.getElementById('btDeviceName').textContent = name;
+    document.getElementById('deviceName').textContent   = name;
+  } else if (state === 'connecting') {
+    disc.style.display = '';
+    conn.style.display = 'none';
+    dot.className = 'bt-dot connecting';
+    stat.textContent = 'Conectando…';
+  } else {
+    disc.style.display = '';
+    conn.style.display = 'none';
+    dot.className = 'bt-dot';
+    stat.textContent = 'Sin conexión';
+    document.getElementById('deviceName').textContent = '—';
+  }
+}
+
+// ── Android Bridge ────────────────────────────────────────────────────
+// All BT calls go to window.Android (injected by WebView)
+// Callbacks come back via window.btCallback(event, data)
+
+window.btCallback = function(event, data) {
+  switch(event) {
+    case 'deviceList':
+      renderDeviceList(JSON.parse(data || '[]'));
+      break;
+    case 'connected':
+      setBTStatus('connected', data);
+      log(`Conectado a ${data} ✓`, 'info');
+      closeScan();
+      closeBTModal();
+      closeDiscModal();
+      break;
+    case 'disconnected':
+      setBTStatus('');
+      log('Desconectado', 'err');
+      closeDiscModal();
+      break;
+    case 'sent':
+      log(`→ "${data}"`);
+      break;
+    case 'error':
+      log(`Error: ${data}`, 'err');
+      break;
+    case 'log':
+      log(data, 'info');
+      break;
+  }
+};
+
+function btSend(str) {
+  if (window.Android) {
+    window.Android.sendString(str);
+  } else {
+    log(`[SIM] → "${str}"`, 'info');
+  }
+}
+
+async function sendSequence(seq) {
+  for (const ch of seq) {
+    btSend(ch);
+    await new Promise(r => setTimeout(r, 100));
+  }
+}
+
+// ── BT modals ─────────────────────────────────────────────────────────
+function openBTModal()   { document.getElementById('btModal').classList.add('open'); }
+function closeBTModal()  { document.getElementById('btModal').classList.remove('open'); }
+function openDiscModal() { document.getElementById('discModal').classList.add('open'); }
+function closeDiscModal(){ document.getElementById('discModal').classList.remove('open'); }
+
+// ── Scan / Device picker ──────────────────────────────────────────────
+document.getElementById('btnScan').addEventListener('click', () => {
+  document.getElementById('deviceList').innerHTML = '<div class="empty-list">Buscando dispositivos pareados…</div>';
+  document.getElementById('scanOverlay').classList.add('open');
+  if (window.Android) {
+    window.Android.getPairedDevices();
+  } else {
+    // Browser simulation
+    setTimeout(() => renderDeviceList([
+      { name: 'HC-06', address: '00:11:22:33:44:55' },
+      { name: 'HC-05', address: 'AA:BB:CC:DD:EE:FF' },
+    ]), 600);
+  }
+});
+
+function closeScan() {
+  document.getElementById('scanOverlay').classList.remove('open');
+}
+
+function renderDeviceList(devices) {
+  const list = document.getElementById('deviceList');
+  if (!devices.length) {
+    list.innerHTML = '<div class="empty-list">No hay dispositivos Bluetooth pareados.<br>Pareá el HC-06 en Configuración → Bluetooth.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  devices.forEach(dev => {
+    const el = document.createElement('div');
+    el.className = 'device-item';
+    el.innerHTML = `<div><div class="dev-name">${dev.name || '(sin nombre)'}</div><div class="dev-addr">${dev.address}</div></div><div class="btn primary" style="padding:5px 12px;font-size:.78rem">Conectar</div>`;
+    el.querySelector('.btn').addEventListener('click', () => connectDevice(dev));
+    list.appendChild(el);
+  });
+}
+
+function connectDevice(dev) {
+  setBTStatus('connecting');
+  log(`Conectando a ${dev.name} (${dev.address})…`, 'info');
+  if (window.Android) {
+    window.Android.connect(dev.address);
+  } else {
+    setTimeout(() => window.btCallback('connected', dev.name), 800);
+  }
+}
+
+document.getElementById('btnDisconnect').addEventListener('click', () => {
+  closeDiscModal();
+  if (window.Android) window.Android.disconnect();
+  else window.btCallback('disconnected', '');
+});
+
+// ── Joystick ──────────────────────────────────────────────────────────
+['up','down','left','right','stop'].forEach(dir => {
+  const el = document.getElementById(`joy-${dir}`);
+  const on  = () => { el.classList.add('pressed');    btSend(cfg[dir].char); };
+  const off = () => { el.classList.remove('pressed'); };
+  el.addEventListener('touchstart',  e => { e.preventDefault(); on();  }, { passive: false });
+  el.addEventListener('touchend',    e => { e.preventDefault(); off(); }, { passive: false });
+  el.addEventListener('touchcancel', e => { e.preventDefault(); off(); }, { passive: false });
+  el.addEventListener('mousedown', on);
+  el.addEventListener('mouseup',   off);
+  el.addEventListener('mouseleave',off);
+});
+
+// ── Custom buttons ────────────────────────────────────────────────────
+['a','b'].forEach(id => {
+  const el  = document.getElementById(`custom-${id}`);
+  const key = 'c' + id;
+  el.addEventListener('click', () => {
+    el.classList.add('pressed');
+    setTimeout(() => el.classList.remove('pressed'), 200);
+    log(`Secuencia "${cfg[key].name}": ${cfg[key].seq}`, 'info');
+    sendSequence(cfg[key].seq);
+  });
+});
+
+// ── Config modal ──────────────────────────────────────────────────────
+document.getElementById('btnConfig').addEventListener('click', openConfig);
+document.getElementById('btModal').addEventListener('click',   e => { if(e.target===e.currentTarget) closeBTModal();  });
+document.getElementById('discModal').addEventListener('click', e => { if(e.target===e.currentTarget) closeDiscModal(); });
+document.getElementById('scanOverlay').addEventListener('click', e => { if(e.target===e.currentTarget) closeScan(); });
+document.getElementById('configOverlay').addEventListener('click', e => { if(e.target===e.currentTarget) closeConfig(); });
+
+function openConfig() {
+  document.getElementById('cfg-up').value    = cfg.up.char;
+  document.getElementById('cfg-up-lb').value = cfg.up.label;
+  document.getElementById('cfg-down').value    = cfg.down.char;
+  document.getElementById('cfg-down-lb').value = cfg.down.label;
+  document.getElementById('cfg-left').value    = cfg.left.char;
+  document.getElementById('cfg-left-lb').value = cfg.left.label;
+  document.getElementById('cfg-right').value    = cfg.right.char;
+  document.getElementById('cfg-right-lb').value = cfg.right.label;
+  document.getElementById('cfg-stop').value    = cfg.stop.char;
+  document.getElementById('cfg-stop-lb').value = cfg.stop.label;
+  document.getElementById('cfg-ca-name').value = cfg.ca.name;
+  document.getElementById('cfg-ca-seq').value  = cfg.ca.seq;
+  document.getElementById('cfg-cb-name').value = cfg.cb.name;
+  document.getElementById('cfg-cb-seq').value  = cfg.cb.seq;
+  document.getElementById('configOverlay').classList.add('open');
+}
+function closeConfig() { document.getElementById('configOverlay').classList.remove('open'); }
+function saveConfig() {
+  ['up','down','left','right','stop'].forEach(d => {
+    cfg[d].char  = document.getElementById(`cfg-${d}`).value    || cfg[d].char;
+    cfg[d].label = document.getElementById(`cfg-${d}-lb`).value || cfg[d].char;
+  });
+  cfg.ca.name = document.getElementById('cfg-ca-name').value || 'Acción 1';
+  cfg.ca.seq  = document.getElementById('cfg-ca-seq').value  || 'ABC';
+  cfg.cb.name = document.getElementById('cfg-cb-name').value || 'Acción 2';
+  cfg.cb.seq  = document.getElementById('cfg-cb-seq').value  || 'XYZ';
+  try { localStorage.setItem('btj_cfg', JSON.stringify(cfg)); } catch(_) {}
+  applyConfig();
+  closeConfig();
+  log('Configuración guardada', 'info');
+}
+
+log('Listo. Tocá "Escanear" para conectar el HC-06.', 'info');
+</script>
+</body>
+</html>
