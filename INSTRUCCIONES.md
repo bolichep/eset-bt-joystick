@@ -55,6 +55,10 @@ btjoystick/
 
 ---
 
+### Generar APK release signed para publicar e instalar facilmente
+- *Build* → *Generate Signed APP Bundle or APK...* → *APK* → _Fill modal_ → *Select release* → *Create*
+- El release signed se encuentra en  `app/release/app-release.apk`
+
 ## Opción B — Compilar por línea de comandos
 
 ```bash
