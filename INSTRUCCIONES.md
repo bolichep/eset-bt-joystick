@@ -14,6 +14,7 @@ usa y que los browsers no soportan directamente.
 btjoystick/
 ├── app/
 │   ├── build.gradle
+│   ├── release/app-release.apk     ← signed release apk (cuando se genere)
 │   └── src/main/
 │       ├── AndroidManifest.xml
 │       ├── assets/
@@ -26,7 +27,6 @@ btjoystick/
 ```
 
 ---
-
 ## Opción A — Android Studio (recomendado)
 
 ### Requisitos
