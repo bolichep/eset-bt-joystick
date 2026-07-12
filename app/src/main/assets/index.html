@@ -510,7 +510,7 @@ function closeScan() {
 function renderDeviceList(devices) {
   const list = document.getElementById('deviceList');
   if (!devices.length) {
-    list.innerHTML = '<div class="empty-list">No hay dispositivos Bluetooth pareados.<br>Pareá el HC-06 en Configuración → Bluetooth.</div>';
+    list.innerHTML = '<div class="empty-list">No hay dispositivos Bluetooth pareados.<br>Pareá un dispositivo en Configuración → Bluetooth.</div>';
     return;
   }
   list.innerHTML = '';
@@ -604,7 +604,7 @@ function saveConfig() {
   log('Configuración guardada', 'info');
 }
 
-log('Listo. Tocá "Escanear" para conectar el HC-06.', 'info');
+log('Listo. Tocá "Sin conexión" para conectar un dispositivo Bluetooth.', 'info');
 </script>
 </body>
 </html>
